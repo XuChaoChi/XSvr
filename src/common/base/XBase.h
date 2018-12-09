@@ -18,6 +18,8 @@
     if(!_FUNC_())\
         throw _INIT_TYPE_
 
+#define XSVR_UNUSED(_ARG_)\
+    (void)_ARG_
 enum XSvrInitType{
     eInitType_listen,
     eInitType_thread,
