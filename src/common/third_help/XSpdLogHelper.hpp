@@ -90,6 +90,7 @@ class XSpdLogHelper
 		spdlog::register_logger(m_pLog);
 		spdlog::set_pattern("[%C-%m-%d %H:%M:%S.%e][%t][%L] %v");
 		spdlog::set_level(eLevel);
+		spdlog::flush_on(spdlog::level::info);
 	}
 
 	void setPattern(const std::string &strPattren)
