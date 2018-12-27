@@ -14,6 +14,9 @@
 #include <time.h>
 #include <iomanip>
 #include <sstream>
+#include <sys/io.h>
+#include <sys/stat.h>
+#include <unistd.h>
 XSVR_NS_BEGIN
 template <typename Mutex>
 class XTimeSink final : public spdlog::sinks::base_sink<Mutex>
@@ -22,7 +25,7 @@ class XTimeSink final : public spdlog::sinks::base_sink<Mutex>
 	XTimeSink(const std::string &strBaseName, uint32_t nMaxSize) : m_strBaseFileName(std::move(strBaseName)),
 																   m_nMaxSize(nMaxSize)
 	{
-		m_fileHelper.open(calcBaseFileName_() + m_strSuffix);
+		m_fileHelper.open(calcBaseFileName_());
 		m_nCurSize = m_fileHelper.size();
 	}
 
@@ -32,7 +35,33 @@ class XTimeSink final : public spdlog::sinks::base_sink<Mutex>
 		auto t = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
 		std::stringstream strStream;
 		strStream << std::put_time(std::localtime(&t), "%Y-%m-%d-%H-%M-%S");
-		return fmt::format("{}_{}", m_strBaseFileName, strStream.str());
+		std::string strFullCurPath = getcwd(NULL, 0);
+		strFullCurPath += m_strFilePath;
+		if (access(strFullCurPath.c_str(), 0) != 0)
+		{
+			if (0 != mkdir(strFullCurPath.c_str(), 0755))
+			{
+				printf("errno=%d\n", errno);
+			}
+		}
+
+		uint32_t nIndex = 0;
+		std::string strRet;
+		while (true)
+		{
+			strRet = fmt::format("{}{}_{}_{}{}", strFullCurPath, m_strBaseFileName, strStream.str(), nIndex, m_strSuffix);
+			if (!spdlog::details::file_helper::file_exists(strRet))
+			{
+				if (nIndex == 0)
+				{
+					auto beginIter = strRet.begin() + (strRet.size() - m_strSuffix.size() - 2);
+					strRet.erase(beginIter, beginIter + 2);
+				}
+				break;
+			}
+			nIndex++;
+		}
+		return strRet;
 	}
 
 	virtual void sink_it_(const spdlog::details::log_msg &msg) override
@@ -57,16 +86,10 @@ class XTimeSink final : public spdlog::sinks::base_sink<Mutex>
 	{
 		using spdlog::details::os::filename_to_str;
 		m_fileHelper.close();
-		std::string strFileName = calcBaseFileName_();
-		uint32_t nIndex = 0;
-		std::string strTemp = "_" + std::to_string(nIndex);
-		while (spdlog::details::file_helper::file_exists(strFileName + "_" + strTemp + m_strSuffix))
-		{
-			strTemp = std::to_string(++nIndex);
-		}
-		m_fileHelper.open(strFileName + "_" + strTemp + m_strSuffix, true);
+		m_fileHelper.open(calcBaseFileName_(), true);
 	}
 	const std::string m_strSuffix = ".log";
+	const std::string m_strFilePath = "/log/";
 	std::string m_strBaseFileName;
 	uint32_t m_nMaxSize;
 	uint32_t m_nCurSize;
@@ -123,8 +146,8 @@ class XSpdLogHelper
 	std::shared_ptr<spdlog::logger> m_pLog = nullptr;
 };
 
-#define LOG_START(_FILE_NAME_) XSvr::Singleton<XSvr::XSpdLogHelper>::instance()->start(_FILE_NAME_, spdlog::level::level_enum::info ,XSVR_1M * 50);
-#define LOG_START_DETAIL(_FILE_NAME_, _LEVEL_ ,_MAX_SIZE_) XSvr::Singleton<XSvr::XSpdLogHelper>::instance()->start(_FILE_NAME_, _LEVEL_ ,_MAX_SIZE_)
+#define LOG_START(_FILE_NAME_) XSvr::Singleton<XSvr::XSpdLogHelper>::instance()->start(_FILE_NAME_, spdlog::level::level_enum::info, XSVR_1M * 50);
+#define LOG_START_DETAIL(_FILE_NAME_, _LEVEL_, _MAX_SIZE_) XSvr::Singleton<XSvr::XSpdLogHelper>::instance()->start(_FILE_NAME_, _LEVEL_, _MAX_SIZE_)
 #define LOG_STOP() XSvr::Singleton<XSvr::XSpdLogHelper>::instance()->stop()
 #define LOG_I(_MSG_) XSvr::Singleton<XSvr::XSpdLogHelper>::instance()->log(spdlog::level::level_enum::info, _MSG_)
 #define LOG_E(_MSG_) XSvr::Singleton<XSvr::XSpdLogHelper>::instance()->log(spdlog::level::level_enum::err, _MSG_)
@@ -132,6 +155,5 @@ class XSpdLogHelper
 #define LOG_C(_MSG_) XSvr::Singleton<XSvr::XSpdLogHelper>::instance()->log(spdlog::level::level_enum::critical, _MSG_)
 #define LOG_D(_MSG_) XSvr::Singleton<XSvr::XSpdLogHelper>::instance()->log(spdlog::level::level_enum::debug, _MSG_)
 #define LOG_T(_MSG_) XSvr::Singleton<XSvr::XSpdLogHelper>::instance()->log(spdlog::level::level_enum::trace, _MSG_)
-
 
 XSVR_NS_END
