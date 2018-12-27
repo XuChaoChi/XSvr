@@ -5,49 +5,51 @@
 
 XSVR_NS_BEGIN
 using PbMsgPtr = std::shared_ptr<google::protobuf::Message>;
+template<typename TSocket>
 class Callback
 {
 public:
 	virtual ~Callback() {};
-	virtual void onMessage(PbMsgPtr pMsgReq) const = 0;
+	virtual void onMessage(PbMsgPtr pMsgReq, std::shared_ptr<TSocket> pSocket) const = 0;
 };
 
-template <typename TReq>
-class CallBackT :public Callback {	
+template <typename TReq, typename TSocket>
+class CallBackT :public Callback<TSocket> {	
 public:
-	using CallBackFuncT = std::function<void(std::shared_ptr<TReq>)>;
+	using CallBackFuncT = std::function<void(std::shared_ptr<TReq>, std::shared_ptr<TSocket>)>;
 	CallBackT(CallBackFuncT pCb) :
 		m_cbFunc(pCb) {
 	}
-	virtual void onMessage(PbMsgPtr pReq) const
+	virtual void onMessage(PbMsgPtr pReq, std::shared_ptr<TSocket> pSocket) const
 	{
 		std::shared_ptr<TReq> msgReq = std::dynamic_pointer_cast<TReq>(pReq);
-		m_cbFunc(msgReq);
+		m_cbFunc(msgReq, pSocket);
 	}
 protected:
 	CallBackFuncT m_cbFunc;
 };
 
+template<typename TSocket>
 class ProtoBufDispather {
 public:
 	template <typename TReq>
-	void registerMsgCallBack(const typename CallBackT<TReq>::CallBackFuncT & cbFunc) {
-		std::shared_ptr<CallBackT<TReq> > pCb(new CallBackT<TReq>(cbFunc));
+	void registerMsgCallBack(const typename CallBackT<TReq, TSocket>::CallBackFuncT & cbFunc) {
+		std::shared_ptr<CallBackT<TReq, TSocket> > pCb(new CallBackT<TReq, TSocket>(cbFunc));
 		m_cbMap[TReq::descriptor()] = pCb;
 	}
-	void onMsgCallBack(const PbMsgPtr pMsg) const{
+	void onMsgCallBack(const PbMsgPtr pMsg, std::shared_ptr<TSocket> pSocket) const{
 		if (pMsg) {
 			auto pIter = m_cbMap.find(pMsg->GetDescriptor());
 			if (pIter != m_cbMap.end()) {
-				pIter->second->onMessage(pMsg);
+				pIter->second->onMessage(pMsg, pSocket);
 			}
 		}	
 	}
-	void onMsgCallBack(const std::string &strTypeName, const std::string &strBuf) const{
+	void onMsgCallBack(const std::string &strTypeName, const std::string &strBuf, std::shared_ptr<TSocket> pSocket) const{
 		auto pMsg = CreateMsg(strTypeName);
 		if (pMsg) {
 			pMsg->ParseFromString(strBuf);
-			onMsgCallBack(pMsg);
+			onMsgCallBack(pMsg, pSocket);
 		}
 	}
 	static PbMsgPtr CreateMsg(const std::string &strTypeName) {
@@ -66,6 +68,6 @@ public:
 	}
 	friend Singleton<ProtoBufDispather>;
 protected:
-	std::map<const google::protobuf::Descriptor*, std::shared_ptr<Callback>> m_cbMap;
+	std::map<const google::protobuf::Descriptor*, std::shared_ptr<Callback<TSocket>>> m_cbMap;
 };
 XSVR_NS_END
