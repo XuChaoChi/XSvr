@@ -5,13 +5,17 @@
 #include <vector>
 #include <mutex>
 #include <atomic>
-
 XSVR_NS_BEGIN
+#define MSGQUEUE_DEFAULT_SIZE 8192
 template <typename TMsg>
 class XMsgQueue
 {
     XSVR_NOCOPYABLE(XMsgQueue)
   public:
+    XMsgQueue()
+        : XMsgQueue(MSGQUEUE_DEFAULT_SIZE)
+    {
+    }
     XMsgQueue(uint32_t nSize)
         : m_nFrontIndex(0),
           m_nTailIndex(0)
@@ -51,8 +55,7 @@ class XMsgQueue
             m_emptyCv.wait(lck);
         }
         msg = m_queue[m_nFrontIndex];
-        m_nFrontIndex = ++m_nTailIndex % m_queue.capacity();
-        m_emptyCv.notify_one();
+        m_nFrontIndex = ++m_nFrontIndex % m_queue.capacity();
         return true;
     }
     uint32_t size()
