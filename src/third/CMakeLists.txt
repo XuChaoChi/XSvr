@@ -1,7 +1,7 @@
 set(third_path ${PROJECT_SOURCE_DIR}/src/third)
 
 include(${third_path}/fmt/CMakeLists.txt)
-include(${third_path}/probuf_3.6.1/CMakeLists.txt)
+include(${third_path}/protobuf/CMakeLists.txt)
 include(${third_path}/libevent/CMakeLists.txt)
 include(${third_path}/spdlog/CMakeLists.txt)
 include(${third_path}/mysql/CMakeLists.txt)

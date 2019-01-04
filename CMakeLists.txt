@@ -27,6 +27,7 @@ include_directories(
     ${PROJECT_SOURCE_DIR}
     ${THIRD_INCLUDE}
     ${COMMON_INCLUDE}
+    ${PROJECT_SOURCE_DIR}/src
 )#添加头文件目录
 
 #主目录
