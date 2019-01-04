@@ -28,24 +28,24 @@ public:
 		{
 			m_pMysql = mysql_init(nullptr);
 			if (!m_pMysql) {
-				errCallback("mysql_init error");
+				_errCallback("mysql_init error");
 				break;
 			}
 			if (strIp.empty() || nPort < 0) {
-				errCallback("ip or port error");
+				_errCallback("ip or port error");
 				break;
 			}
             auto bConnect = 1;
             mysql_options(m_pMysql, MYSQL_OPT_RECONNECT, &bConnect);
 			if (!strCharacterset.empty()) {
 				if (mysql_set_character_set(m_pMysql, strCharacterset.c_str()) != 0) {
-					errCallback("mysql_set_character_set error");
+					_errCallback("mysql_set_character_set error");
 					break;
 				}
 			}
 			m_pMysql = mysql_real_connect(m_pMysql, strIp.c_str(), strUser.c_str(), strPw.c_str(), strDB.c_str(), nPort, nullptr, 0);
 			if (!m_pMysql) {
-				errCallback("mysql_real_connect error");
+				_errCallback("mysql_real_connect error");
 				break;
 			}
 			bRet = true;
@@ -68,7 +68,7 @@ public:
         SqlRetCode eRet = eSqlRet_error;
         do{
             if(!query(strSql)){
-                sqlErrMsg(strSql);
+                _sqlErrMsg(strSql);
                 break;
             }
             else{
@@ -83,7 +83,7 @@ public:
         SqlRetCode eRet = eSqlRet_error;
         do{
             if(mysql_query(m_pMysql,strQuery.c_str()) != 0){
-                sqlErrMsg(strQuery);
+                _sqlErrMsg(strQuery);
                 break;
             }
             if(m_pRes){
@@ -155,34 +155,34 @@ public:
     }
 private:
     template<typename TValue>
-    void parseValue(const std::string &strFiled, TValue & tValue){
+    void _parseValue(const std::string &strFiled, TValue & tValue){
         std::istringstream stream(strFiled);
         stream >> tValue;
     }
 
-    void parseValue(const std::string& strFiled,std::string& strValue){
+    void _parseValue(const std::string& strFiled,std::string& strValue){
         strValue = strFiled;
     }
 
-    void parseValue(const std::string& strFiled,bool& bValue){
+    void _parseValue(const std::string& strFiled,bool& bValue){
         bValue = (strFiled == "TRUE" || strFiled == "True" || strFiled == "true" || strFiled == "1") ? true : false;
     }
 
-    void parseValue(const std::string& strFiled,char& szResult){
+    void _parseValue(const std::string& strFiled,char& szResult){
         int16_t temp = 0;
-        parseValue<int16_t>(strFiled,temp);
+        _parseValue<int16_t>(strFiled,temp);
         szResult = (char)temp;
     }
 
     template<typename TValue>
-    bool getFiled(uint32_t nIndex, TValue &tValue){
+    bool _getFiled(uint32_t nIndex, TValue &tValue){
         bool bRet = false;
         do{
             if(nIndex >= m_pRes->row_count){
                 break;
             }
             if(m_pRow[nIndex]){
-                parseValue(m_pRow[nIndex], tValue);
+                _parseValue(m_pRow[nIndex], tValue);
             }
             bRet = true;
         }while(0);
@@ -190,22 +190,22 @@ private:
     }
 
     template<typename TValue, typename ...TArgs>
-    bool fetch(uint32_t nIndex, TValue &tValue, TArgs &...args){
+    bool _fetch(uint32_t nIndex, TValue &tValue, TArgs &...args){
         if(nIndex >= m_pRes->field_count){
             return true;
         }
-        if(!getFiled(nIndex, tValue)){
+        if(!_getFiled(nIndex, tValue)){
             return false;
         }
-        return fetch(nIndex + 1, args...);
+        return _fetch(nIndex + 1, args...);
     }
 
-    bool fetch(uint32_t nIndex){
+    bool _fetch(uint32_t nIndex){
         XSVR_UNUSED(nIndex);
         return true;
     }
 
-	void sqlErrMsg(const std::string &strSql) {
+	void _sqlErrMsg(const std::string &strSql) {
 		std::string strErrMsg;
 		const char *pMsg = mysql_error(m_pMysql);
 		strErrMsg = "ERROR QUERY:" + strSql + "\n";
@@ -213,10 +213,10 @@ private:
         strErrMsg += std::to_string(mysql_errno(m_pMysql)) + "\n";
 		strErrMsg += "ERROR MSG:";
 		strErrMsg += pMsg;
-		errCallback(strErrMsg);
+		_errCallback(strErrMsg);
 	}
 
-	void errCallback(const std::string &strError) {
+	void _errCallback(const std::string &strError) {
 		if (m_pErrFunc) {
 			m_pErrFunc(strError);
 		}
