@@ -1,17 +1,44 @@
-#最低版本
 cmake_minimum_required( VERSION 2.8 )
 
-#项目名
-set(pro_name "XSvr")
+set(PRO_NAME "XSvr")
 
-#project(${pro_name})
+#add include path
+set(SRC_PATH ${PROJECT_SOURCE_DIR}/src)
+set(THIRD_PATH ${SRC_PATH}/third)
+set(INCLUDE_PATH
+    ${SRC_PATH}
+    ${SRC_PATH}/common
+    ${SRC_PATH}/common/base
+    ${SRC_PATH}/common/net
+    ${SRC_PATH}/common/third_help
+    ${SRC_PATH}/common/utility
+    #add third
+    ${THIRD_PATH}/fmt/include 
+    ${THIRD_PATH}/libevent/include
+    ${THIRD_PATH}/mysql/include
+    ${THIRD_PATH}/protobuf/google
+    ${THIRD_PATH}/protobuf
+    ${THIRD_PATH}/spdlog/include
+)
+include_directories(${INCLUDE_PATH})
+#add file
+file(GLOB_RECURSE PRO_CPP src/*.cpp )
+file(GLOB_RECURSE PRO_H src/*.h )
+file(GLOB_RECURSE PRO_HPP src/*.hpp )
+file(GLOB_RECURSE PRO_CC src/*.cc )
+set(PRO_SRC ${PRO_H} ${PRO_CPP} ${PRO_HPP} ${PRO_CC})
 
-set(third_path ${PROJECT_SOURCE_DIR}/src/third)
-set(protocol_path ${PROJECT_SOURCE_DIR}/src/protocol)
-set(common_path ${PROJECT_SOURCE_DIR}/src/common)
-include(${third_path}/CMakeLists.txt)
-include(${protocol_path}/CMakeLists.txt)
-include(${common_path}/CMakeLists.txt)
+#add lib
+link_directories(/usr/local/lib)
+set(PRO_LIB
+   -lstdc++
+   -lpthread
+   libevent.a
+   libevent_pthreads.a
+   libprotobuf.a
+)
+
+
 
 IF(NOT CMAKE_BUILD_TYPE)#（可选）如果没有指定cmake编译模式，就选择Release模式,必须写成三行
 SET(CMAKE_BUILD_TYPE Debug)
@@ -22,35 +49,6 @@ set( CMAKE_CXX_FLAGS "-std=c++11" )
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/bin)#将产生的target文件输出到指定路径
 
 
+add_executable(${PRO_NAME} ${PRO_SRC})#生成可执行文件
 
-include_directories(
-    ${PROJECT_SOURCE_DIR}
-    ${THIRD_INCLUDE}
-    ${COMMON_INCLUDE}
-    ${PROJECT_SOURCE_DIR}/src
-)#添加头文件目录
-
-#主目录
-file(GLOB pro_cpp src/*.cpp )
-file(GLOB pro_h src/*.h )
-
-#包含文件
-set(pro_src  
-    ${pro_h} 
-    ${pro_cpp} 
-    ${THIRD_SRC} 
-    ${THIRD_HEADER} 
-    ${PROTOCOL_H}
-    ${PROTOCOL_CC}
-    ${COMMON_H}
-    ${COMMON_SRC}
-    ${COMMON_HPP}
-)
-#包含lib
-set(pro_lib
-    ${THIRD_LIB} 
-)
-
-add_executable(${pro_name} ${pro_src})#生成可执行文件
-
-target_link_libraries(${pro_name} ${pro_lib}) 
+target_link_libraries(${PRO_NAME} ${PRO_LIB}) 
