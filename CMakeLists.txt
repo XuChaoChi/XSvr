@@ -13,12 +13,14 @@ set(INCLUDE_PATH
     ${SRC_PATH}/common/third_help
     ${SRC_PATH}/common/utility
     #add third
+    ${THIRD_PATH}
     ${THIRD_PATH}/fmt/include 
     ${THIRD_PATH}/libevent/include
     ${THIRD_PATH}/mysql/include
     ${THIRD_PATH}/protobuf/google
     ${THIRD_PATH}/protobuf
     ${THIRD_PATH}/spdlog/include
+    ${THIRD_PATH}/hiredis
 )
 include_directories(${INCLUDE_PATH})
 #add file
@@ -30,12 +32,19 @@ set(PRO_SRC ${PRO_H} ${PRO_CPP} ${PRO_HPP} ${PRO_CC})
 
 #add lib
 link_directories(/usr/local/lib)
+link_directories(/usr/local/mysql/lib)
 set(PRO_LIB
    -lstdc++
-   -lpthread
    libevent.a
    libevent_pthreads.a
    libprotobuf.a
+   libmysqlclient.a
+   -lrt 
+   -lpthread 
+   -ldl
+   -lcrypto
+   -lssl
+   ${THIRD_PATH}/hiredis/lib/libhiredis.a
 )
 
 
