@@ -2,6 +2,8 @@
 #include "base/XBase.h"
 #include "hiredis/hiredis.h"
 XSVR_NS_BEGIN
+
+
 class XHiRedisHelper{
     using RedisReplyPtr = std::shared_ptr<redisReply>;
 public:
@@ -62,11 +64,13 @@ public:
     }
 
     template<typename ...Args>
-    bool commandSet(std::vector<std::string> &vSet, const char *szBuf, Args ...args){
-        auto pReply = command(szBuf, std::forward<Args...>(args...));
+    bool commandArray(std::vector<std::string> &vValues, const char *szBuf, Args ...args){
+        auto pReply = command(szBuf, args...);
         if(checkReply(pReply)){
             for (uint32_t i = 0; i < pReply->elements; i++){
-                vSet.push_back(pReply->element[i]->str);
+                if (pReply->element[i]->str){
+                    vValues.push_back(pReply->element[i]->str);
+                }
             }
             return true;
         }
@@ -75,9 +79,21 @@ public:
 
     template<typename ...Args>
     bool commandInteger(int64_t &nValue, const char *szBuf, Args ...args){
-        auto pReply = command(szBuf, std::forward<Args...>(args...));
+        auto pReply = command(szBuf, args...);
         if(checkReply(pReply)){
             nValue = pReply->integer;
+            return true;
+        }
+        return false;
+    }
+
+    template<typename ...Args>
+    bool commandDouble(double &nValue, const char *szBuf, Args ...args){
+        auto pReply = command(szBuf, args...);
+        if(checkReply(pReply)){
+            if(pReply->str){
+                nValue = std::atof(std::string(pReply->str, pReply->len).c_str());
+            }
             return true;
         }
         return false;
@@ -115,7 +131,7 @@ public:
     }
 
     bool keys(const std::string &strPattern, std::vector<std::string> &vKeys){
-        return commandSet(vKeys, "keys %s", strPattern.c_str());
+        return commandArray(vKeys, "keys %s", strPattern.c_str());
     }
 
     bool move(const std::string strKey, uint32_t nIndex){
@@ -164,16 +180,97 @@ public:
         return commandString(strValue, "get %s", strKey.c_str());
     }
 
-    bool getRange(const std::string &strKey, uint32_t nBegin, uint32_t nEnd,std::string &strValue){
-        auto pReply = command("getrange %s %d %d", strKey.c_str(), nBegin, nEnd);
-        bool bRet = checkReply(pReply);
-        if (bRet){
-            strValue = std::move(std::string(pReply->str, pReply->len));
-        }
-        return bRet;
+    bool getRange(const std::string &strKey, int64_t nBegin, int64_t nEnd,std::string &strValue){
+        return commandString(strValue, "getrange %s %lld %lld", strKey.c_str(), nBegin, nEnd);
+    }
+
+    bool getSet(const std::string &strKey, const std::string &strNewValue, std::string &strOldValue){
+        return commandString(strOldValue, "getset %s %s", strKey.c_str(), strNewValue.c_str());
+    }
+
+    bool getBit(const std::string &strKey, int64_t nOffset){
+        return checkReplyBoolFromInt(command("getbit %s %lld", strKey.c_str(), nOffset));
+    }
+
+    bool mGet(const std::vector<std::string> vKeys, std::vector<std::string> &vValues){
+        return commandArray(vValues,  makeKeysToString("mget", vKeys).c_str());
+    }
+
+    bool setBit(const std::string &strKey, int64_t nOffset, bool bBit){
+        return checkReplyBoolFromInt(command("setbit %s %lld %d", strKey.c_str(), nOffset, (int32_t)bBit));
+    }
+
+    bool setEx(const std::string &strKey, int64_t nSec, const std::string strValue){
+        return checkReply(command("setex %s %lld %s", strKey.c_str(), nSec, strValue.c_str()));
+    }
+
+    bool setNx(const std::string &strKey, const std::string &strValue) {
+        return checkReplyBoolFromInt(command("setnx %s %s", strKey.c_str(), strValue.c_str()));
+    }
+
+    bool setRange(const std::string &strKey, int64_t nOffset, const std::string &strValue){
+        return checkReplyBoolFromInt(command("setrange %s %lld %s", strKey.c_str(), nOffset, strValue.c_str()));
+    }
+
+    bool strlen(const std::string &strKey, int64_t &nLen){
+        return commandInteger(nLen, "strlen %s", strKey.c_str());
+    }
+
+    bool mSet(const std::map<std::string, std::string> &mData){
+        return checkReply(command(makeKeyValuesToString("mset", mData).c_str()));
+    }
+
+    bool mSetNx(const std::map<std::string, std::string> &mData){
+        return checkReplyBoolFromInt(command(makeKeyValuesToString("msetnx", mData).c_str()));
+    }
+    //5.0.2 unknow command
+    bool pSetEx(const std::string &strKey, int64_t nMilliSec){
+        return checkReplyBoolFromInt(command("psetex %s %lld", strKey.c_str(), nMilliSec));
+    }
+
+    bool incr(const std::string &strKey, int64_t &nRet){
+        return commandInteger(nRet, "incr %s", strKey.c_str());
+    }
+
+    bool incrBy(const std::string &strKey, int64_t nStep, int64_t &nRet){
+       return commandInteger(nRet, "incrby %s %lld", strKey.c_str(), nStep);
+    }
+
+    bool incrByFloat(const std::string &strKey, double nStep, double &nRet){
+        return commandDouble(nRet, "incrbyfloat %s %f", strKey.c_str(), nStep);
+    }
+
+    bool decr(const std::string &strKey, int64_t &nRet){
+        return commandInteger(nRet, "decr %s", strKey.c_str());
+    }
+
+    bool decrBy(const std::string &strKey, int64_t nStep, int64_t &nRet){
+        return commandInteger(nRet, "decrby %s %lld", strKey.c_str(), nStep);
+    }
+
+    bool append(const std::string &strKey, const std::string &strAppend, int64_t &nRet){
+        return commandInteger(nRet, "append %s %s", strKey.c_str(), strAppend.c_str());
     }
     //abort hash
 private:
+
+    std::string makeKeysToString(const std::string &strCommand, const std::vector<std::string> &vKeys) const {
+        std::string strRet = strCommand;
+        for (auto &vIter : vKeys){
+            strRet += " ";
+            strRet += vIter;
+        }
+        return strRet;
+    }
+
+    std::string makeKeyValuesToString(const std::string &strCommand, const std::map<std::string, std::string> mData){
+        std::string strRet = strCommand;
+        for(auto &mIter : mData){
+            strRet += " " + mIter.first + " " + mIter.second;
+        }
+        return strRet;
+    }
+
     bool checkReplyBoolFromInt(RedisReplyPtr pReply){
         if(pReply){
             if(pReply->type == REDIS_REPLY_INTEGER  && pReply->integer){
@@ -216,7 +313,9 @@ private:
             std::string strErrorMsg = "ERROR CTX:";
             strErrorMsg += m_pRedisCtx->errstr;
             strErrorMsg += "\nERROR REPLY:";
-            strErrorMsg += pReply->str;
+            if(pReply->str){
+                strErrorMsg += pReply->str;
+            }
             onError(strErrorMsg);
         }
         return bRet;
