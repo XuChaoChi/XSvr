@@ -3,7 +3,6 @@
 #include "hiredis/hiredis.h"
 XSVR_NS_BEGIN
 
-
 class XHiRedisHelper{
     using RedisReplyPtr = std::shared_ptr<redisReply>;
 public:
@@ -57,7 +56,13 @@ public:
     bool commandString(std::string &strData, const char *szBuf, Args ...args){
         auto pReply = command(szBuf, args...);
         if(checkReply(pReply)){
-            strData = std::string(pReply->str, pReply->len);
+            if(pReply->str){
+                strData = std::string(pReply->str, pReply->len);
+            }
+            else{
+                strData = "null";
+            }
+
             return true;
         }
         return false;
@@ -70,11 +75,21 @@ public:
             for (uint32_t i = 0; i < pReply->elements; i++){
                 if (pReply->element[i]->str){
                     vValues.push_back(pReply->element[i]->str);
+                }else{
+                    vValues.push_back("null");
                 }
             }
-            return true;
+            if(pReply->len != 0 || pReply->elements != 0){
+                return true;
+            }
         }
         return false;
+    }
+
+    template<typename ...Args>
+    bool commandHash(std::map<std::string, std::string> &mData, const char *szBuf, Args ...args){
+        auto pReply = command(szBuf, args...);
+        return getCommandHash(pReply, mData);
     }
 
     template<typename ...Args>
@@ -193,7 +208,8 @@ public:
     }
 
     bool mGet(const std::vector<std::string> vKeys, std::vector<std::string> &vValues){
-        return commandArray(vValues,  makeKeysToString("mget", vKeys).c_str());
+        std::string strCommand = "mget" +  makeKeysToString(vKeys);
+        return commandArray(vValues,  strCommand.c_str());
     }
 
     bool setBit(const std::string &strKey, int64_t nOffset, bool bBit){
@@ -217,11 +233,13 @@ public:
     }
 
     bool mSet(const std::map<std::string, std::string> &mData){
-        return checkReply(command(makeKeyValuesToString("mset", mData).c_str()));
+        std::string strCommand = "mset" + makeKeyValuesToString(mData);
+        return checkReply(command(strCommand.c_str()));
     }
 
     bool mSetNx(const std::map<std::string, std::string> &mData){
-        return checkReplyBoolFromInt(command(makeKeyValuesToString("msetnx", mData).c_str()));
+        std::string strCommand = "msetnx" + makeKeyValuesToString(mData);
+        return checkReplyBoolFromInt(command(strCommand.c_str()));
     }
     //5.0.2 unknow command
     bool pSetEx(const std::string &strKey, int64_t nMilliSec){
@@ -252,10 +270,93 @@ public:
         return commandInteger(nRet, "append %s %s", strKey.c_str(), strAppend.c_str());
     }
     //abort hash
-private:
 
-    std::string makeKeysToString(const std::string &strCommand, const std::vector<std::string> &vKeys) const {
-        std::string strRet = strCommand;
+    bool hDel(const std::string &strKey, const std::vector<std::string> &vFiled){
+    std::string strCommand = "hdel " + strKey + makeKeysToString(vFiled);
+        return checkReplyBoolFromInt(command(strCommand.c_str()));
+    }
+
+    bool hExists(const std::string &strKey, const std::string &strFiled){
+        return checkReplyBoolFromInt(command("hexists %s %s", strKey.c_str(), strFiled.c_str()));
+    }
+
+    bool hGetAll(const std::string &strKey, std::map<std::string, std::string> &mData){
+        return commandHash(mData, "hgetall %s", strKey.c_str());
+    }
+
+    bool hIncrBy(const std::string &strKey, const std::string &strFiled, int64_t nIncr, int64_t &nRet){
+        return commandInteger(nRet, "hincrby %s %s %lld", strKey.c_str(), strFiled.c_str(), nIncr);
+    }
+
+    bool hIncrByFloat(const std::string &strKey, const std::string &strFiled, double nIncr, double &nRet){
+        return commandDouble(nRet, "hincrbyfloat %s %s %f", strKey.c_str(), strFiled.c_str(), nIncr);
+    }
+
+    bool hKeys(const std::string &strKey, std::vector<std::string> &vFiled){
+        return commandArray(vFiled, "hkeys %s", strKey.c_str());
+    }
+
+    bool hLen(const std::string &strKey, int64_t &nLen){
+        return commandInteger(nLen, "hlen %s", strKey.c_str());
+    }
+
+    bool hMGet(const std::string &strKey, const std::vector<std::string> vFiled, std::vector<std::string> &vValue){
+        std::string strCommand = "hmget " + strKey + makeKeysToString(vFiled);
+        return commandArray(vValue, strCommand.c_str());
+    }
+
+    bool hMSet(const std::string &strKey, const std::map<std::string, std::string> &mData){
+        std::string strCommand = "hmset " + strKey + makeKeyValuesToString(mData);
+        return checkReply(command(strCommand.c_str()));
+    }
+
+    bool hSet(const std::string &strKey, const std::string &strFiled, const std::string &strValue){
+        return checkReplyBoolFromInt(command("hset %s %s %s", strKey.c_str(), strFiled.c_str(), strValue.c_str()));
+    }
+
+    bool hSetNx(const std::string &strKey, const std::string &strFiled, const std::string &strValue){
+        return checkReplyBoolFromInt(command("hsetnx %s %s %s", strKey.c_str(), strFiled.c_str(), strValue.c_str()));
+    }
+
+    bool hVals(const std::string &strKey, std::vector<std::string> &vValues){
+        return commandArray(vValues, "hvals %s", strKey.c_str());
+    }
+
+    bool hScan(const std::string &strKey, int64_t nPattern, int64_t nPageCnt, int64_t &nCnt, std::map<std::string, std::string> &mData){
+        auto pReply = command("hscan %s %lld count %lld", strKey.c_str(), nPattern, nPageCnt);
+        if (checkReply(pReply)){
+            if(pReply){
+                nCnt = std::atoll(pReply->element[0]->str);
+            }
+        }
+        auto pDataReply = RedisReplyPtr(pReply->element[1], [](redisReply *pReply){
+        });
+        return getCommandHash(pDataReply, mData);
+    }
+
+private:
+    bool getCommandHash(RedisReplyPtr pReply, std::map<std::string, std::string> &mData){
+        if(checkReply(pReply)){
+            for (uint32_t i = 0; i < pReply->elements; i += 2){
+                if (pReply->element[i]->str && pReply->element[i+1]->str){
+                    if(pReply->element[i+1]->str){
+                        mData[pReply->element[i]->str] = pReply->element[i+1]->str;
+                    }
+                    else{
+                        mData[pReply->element[i]->str] = "null";
+                    }
+
+                }
+            }
+            if(pReply->len != 0 || pReply->elements != 0){
+                return true;
+            }
+        }
+        return false;
+    }
+
+    std::string makeKeysToString(const std::vector<std::string> &vKeys) const {
+        std::string strRet;
         for (auto &vIter : vKeys){
             strRet += " ";
             strRet += vIter;
@@ -263,8 +364,8 @@ private:
         return strRet;
     }
 
-    std::string makeKeyValuesToString(const std::string &strCommand, const std::map<std::string, std::string> mData){
-        std::string strRet = strCommand;
+    std::string makeKeyValuesToString(const std::map<std::string, std::string> mData){
+        std::string strRet;
         for(auto &mIter : mData){
             strRet += " " + mIter.first + " " + mIter.second;
         }
@@ -336,5 +437,6 @@ private:
     std::function<void(const std::string&)> m_logFunc;
     redisContext *m_pRedisCtx = nullptr;
 };
+
 
 XSVR_NS_END
