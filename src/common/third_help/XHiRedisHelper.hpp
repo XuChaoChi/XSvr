@@ -122,7 +122,7 @@ public:
 
     //abort key
     bool del(const std::string & strKey){
-        return checkReply(command("del %s", strKey.c_str()));
+        return checkReplyBoolFromInt(command("del %s", strKey.c_str()));
     }
 
     bool exists(const std::string & strKey){
@@ -333,6 +333,102 @@ public:
         });
         return getCommandHash(pDataReply, mData);
     }
+    //abort list
+    bool bLPop(const std::string &strKey, int32_t nTimeOut, std::string &strPop){
+        std::vector<std::string> vData;
+        if(commandArray(vData, "blpop %s %d", strKey.c_str(), nTimeOut)){
+            if(vData.size() == 2){
+                strPop = vData.at(1);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool bRPop(const std::string &strKey, int32_t nTimeOut, std::string &strPop){
+        std::vector<std::string> vData;
+        if(commandArray(vData, "bRpop %s %d", strKey.c_str(), nTimeOut)){
+            if(vData.size() == 2){
+                strPop = vData.at(1);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool bRPopLPush(const std::string &strSource, const std::string &strDest, int32_t nTimeOut, std::string &strChange){
+       return commandString(strChange, "brpoplpush %s %s %d", strSource.c_str(), strDest.c_str(), nTimeOut);
+    }
+
+    bool lIndex(const std::string &strKey, int64_t nIndex, std::string &strValue){
+        return commandString(strValue, "lindex %s %ld", strKey.c_str(), nIndex);
+    }
+
+    bool lPop(const std::string &strKey, std::string &strValue){
+         return commandString(strValue, "lpop %s ", strKey.c_str());
+    }
+
+    bool lPush(const std::string &strKey, const std::vector<std::string> vKeys, int64_t &nCnt){
+        std::string strCommand = "lpush " + strKey + makeKeysToString(vKeys);
+        return commandInteger(nCnt, strCommand.c_str());
+    }
+
+    bool lPushX(const std::string &strKey, const std::string &strValue, int64_t &nCnt){
+        if( commandInteger(nCnt, "lpushx %s %s", strKey.c_str(), strValue.c_str()) && nCnt != 0){
+            return true;
+        }
+        return false;
+    }
+
+    bool lRange(const std::string &strKey, int64_t nBegin, int64_t nEnd, std::vector<std::string> &vValues){
+        return commandArray(vValues, "lrange %s %lld %lld", strKey.c_str(), nBegin, nEnd);
+    }
+
+    bool lRem(const std::string &strKey, int64_t nCnt, const std::string &strValue, int64_t &nRet){
+        if( commandInteger(nRet, "lrem %s %lld %s", strKey.c_str(), nCnt, strValue.c_str()) && nRet != 0){
+            return true;
+        }
+        return false;
+    }
+
+    bool lSet(const std::string &strKey, int64_t nIndex, const std::string &strValue){
+        return checkReply(command("lset %s %lld %s", strKey.c_str(), nIndex, strValue.c_str()));
+    }
+
+    bool lTrim(const std::string &strKey, int64_t nBegin, int64_t nEnd){
+        return checkReply(command("ltrim %s %lld %lld", strKey.c_str(), nBegin, nEnd));
+    }
+
+    bool rRop(const std::string &strKey, std::string &strValue){
+        return commandString(strValue, "rpop %s", strKey.c_str());
+    }
+
+    bool rPopLPush(const std::string &strSource, const std::string &strDest, std::string &strValue){
+        return commandString(strValue, "rpoplpush %s %s", strSource.c_str(), strDest.c_str());
+    }
+
+    bool rPush(const std::string &strKey, const std::vector<std::string> &vKeys, int64_t &nRet){
+        std::string strCommand = "rpush " + strKey + makeKeysToString(vKeys);
+        return commandInteger(nRet, strCommand.c_str());
+    }
+
+    bool rPushX(const std::string &strKey, const std::string &strValue, int64_t &nCnt){
+        if( commandInteger(nCnt, "rpushx %s %s", strKey.c_str(), strValue.c_str()) && nCnt != 0){
+            return true;
+        }
+        return false;
+    }
+
+    bool lLen(const std::string &strKey, int64_t &nRet){
+        return commandInteger(nRet, "llen %s", strKey.c_str()) && nRet > 0;
+    }
+
+    bool lInsert(const std::string &strKey, bool bBefore, const std::string &strPivot, const std::string &strValue, int64_t &nRet){
+        std::string strCommand = "linsert " + strKey;
+        strCommand += bBefore ? " before " : " after ";
+        strCommand += strPivot + " " + strValue;
+        return commandInteger(nRet, strCommand.c_str()) && nRet > 0;
+    }
 
 private:
     bool getCommandHash(RedisReplyPtr pReply, std::map<std::string, std::string> &mData){
@@ -437,6 +533,4 @@ private:
     std::function<void(const std::string&)> m_logFunc;
     redisContext *m_pRedisCtx = nullptr;
 };
-
-
 XSVR_NS_END
