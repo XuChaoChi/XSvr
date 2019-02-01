@@ -4,6 +4,7 @@
 #include <string>
 #include <functional>
 #include <sstream>
+#include <mutex>
 #include "base/XBase.h"
 XSVR_NS_BEGIN
 enum SqlRetCode{
@@ -23,6 +24,8 @@ public:
 	}
 	bool connect(const std::string &strIp, uint16_t nPort, const std::string &strUser
 		, const std::string &strPw, const std::string &strDB, const std::string strCharacterset = "") {
+        static std::mutex mysqlConnMutex;
+        std::lock_guard<std::mutex> lck(mysqlConnMutex);
 		bool bRet = false;
 		do 
 		{
