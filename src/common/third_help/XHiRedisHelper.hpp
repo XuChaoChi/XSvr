@@ -740,4 +740,5 @@ private:
     std::function<void(const std::string&)> m_logFunc;
     redisContext *m_pRedisCtx = nullptr;
 };
+
 XSVR_NS_END
