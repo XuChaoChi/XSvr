@@ -34,3 +34,13 @@ enum XSvrInitType{
     eInitType_cnt,
     
 };
+
+enum XSvrLogLevel{
+    eLog_trace = 0,
+    eLog_debug = 1,
+    eLog_info = 2,
+    eLog_warn = 3,
+    eLog_err = 4,
+    eLog_critical = 5,
+    eLog_off = 6
+};
