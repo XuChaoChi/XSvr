@@ -53,20 +53,23 @@ protected:
 
   virtual bool _onSvrStop() override
   {
-    //todo 退出有问题
     for (uint32_t i = 0; i < m_vThreadPool.size(); i++)
     {
       MsgItem stItem;
       stItem.eMsgType = MsgItem::eMsgType_Quit;
       m_msgQueue.push(stItem);
     }
-    
+    m_pListen->close();
+    LOG_I("EXIT");
+    return true;
+  }
+
+  virtual bool _waitForShutDown() override{
     for (auto &vIter : m_vThreadPool)
     {
       vIter->join();
     }
-    m_pListen->close();
-    LOG_I("EXIT");
+    LOG_I("WAIT FOR SHUTDOWN...");
     return true;
   }
 
@@ -86,7 +89,7 @@ protected:
   bool initProtobuf()
   {
 #define PROTOBUF_DISPATH(_PROTO_, _FUNC_, _OBJ_) \
-  XSvr::Singleton<XSvr::ProtoBufDispather<XSvr::XEventClient>>::instance()->registerMsgCallBack<_PROTO_>(XSVR_BIND_2(_FUNC_, _OBJ_))
+    m_dispath.registerMsgCallBack<_PROTO_>(XSVR_BIND_2(_FUNC_, _OBJ_))
     //这里添加协议的回调函数
     PROTOBUF_DISPATH(TestMsg2, &XSvrLogic::onTest, this);
     return true;
@@ -104,7 +107,7 @@ protected:
         switch (tempMsg.eMsgType)
         {
         case MsgItem::eMsgType_ProtoBuf:
-          XSvr::Singleton<XSvr::ProtoBufDispather<XSvr::XEventClient>>::instance()->onMsgCallBack(tempMsg.pMsg, tempMsg.pClient);
+          m_dispath.onMsgCallBack(tempMsg.pMsg, tempMsg.pClient);
           break;
         case MsgItem::eMsgType_Quit:
         LOG_I("QUIT");
@@ -125,7 +128,7 @@ protected:
     std::string strMsgType(pData + sizeof(int32_t), pData + sizeof(int32_t) + nMsgTypeSize);
     LOG_I(strMsgType);
     std::string strData(pData + sizeof(int32_t) + nMsgTypeSize, pData + nLen);
-    auto pMsg = XSvr::Singleton<XSvr::ProtoBufDispather<XSvr::XEventClient>>::instance()->CreateMsg(strMsgType);
+    auto pMsg = m_dispath.CreateMsg(strMsgType);
     pMsg->ParseFromString(std::move(strData));
     MsgItem stItem;
     stItem.eMsgType = MsgItem::eMsgType_ProtoBuf;
@@ -161,4 +164,5 @@ protected:
   std::shared_ptr<XSvr::XNetSvrCallBack<XSvr::XEventClient>> m_pNetCb = nullptr;
   std::vector<std::shared_ptr<std::thread>> m_vThreadPool;
   XSvr::XMsgQueue<MsgItem> m_msgQueue;
+  XSvr::ProtoBufDispather<XSvr::XEventClient> m_dispath;
 };
