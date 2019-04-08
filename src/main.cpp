@@ -8,10 +8,19 @@
 #include "signal.h"
 #include <sys/stat.h> 
 #include "base/XSvrBase.hpp"
-int main(int argc, char const *argv[])
+
+#define OPEN_TEST
+#ifdef OPEN_TEST
+    #include "test/TestXMsgQueue.h"
+#endif
+
+int main(int argc, char *argv[])
 {
+#ifdef OPEN_TEST
+    testing::InitGoogleTest(&argc,argv);
+    RUN_ALL_TESTS(); 
+#endif
     LOG_START("XSVR");
-    
     XSvr::Singleton<XSvrLogic>::instance()->start();
     XSvr::Singleton<XSvrLogic>::instance()->setLogFunc([&](const std::string &strMsg, XSvrLogLevel eLevel){
         if (eLevel == XSvrLogLevel::eLog_err){
