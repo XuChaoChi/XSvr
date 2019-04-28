@@ -51,6 +51,16 @@
     $ make
     $ sudo make install
 
+### gtest
+    
+    $ wget https://github.com/google/googletest/archive/release-1.8.1.tar.gz
+    $ tar -zxvf release-1.8.1.tar.gz
+    $ cd googletest-release-1.8.1
+    $ mkdir build && cd build
+    $ cmake ..
+    $ make
+    $ sudo make install
+
 ## 使用
 
 ## TODO
@@ -61,4 +71,3 @@
 - rpc
 - http
 - epoll
-- googletest
