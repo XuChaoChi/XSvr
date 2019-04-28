@@ -8,10 +8,11 @@
 #include "base/XBase.h"
 XSVR_NS_BEGIN
 enum SqlRetCode{
-    eSqlRet_success = 0,
-    eSqlRet_empty = 1,
-    eSqlRet_data = 2,
-    eSqlRet_error = 3,
+	eSqlRet_Error = 1,
+	eSqlRet_Data = 2,
+	eSqlRet_Empty = 3,
+    eSqlRet_Affect = 4, 
+	eSqlRet_NoAffect = 5,
     eSqlRet_cnt
 };
 class XMysqlHelper {
@@ -68,7 +69,7 @@ public:
 	}
 
     SqlRetCode exectue(const std::string &strSql){
-        SqlRetCode eRet = eSqlRet_error;
+        SqlRetCode eRet = eSqlRet_Error;
         do{
             if(!query(strSql)){
                 _sqlErrMsg(strSql);
@@ -76,14 +77,14 @@ public:
             }
             else{
                 m_nAffect = mysql_affected_rows(m_pMysql);
-                eRet = m_nAffect == 0 ? eSqlRet_error : eSqlRet_success;
+                eRet = m_nAffect == 0 ? eSqlRet_NoAffect : eSqlRet_Affect;
             }
         }while(0);
         return eRet;
     }
 
     SqlRetCode query(const std::string &strQuery){
-        SqlRetCode eRet = eSqlRet_error;
+        SqlRetCode eRet = eSqlRet_Error;
         do{
             if(mysql_query(m_pMysql,strQuery.c_str()) != 0){
                 _sqlErrMsg(strQuery);
@@ -98,46 +99,72 @@ public:
                 break;
             }
             if(m_pRes->row_count == 0){
-                eRet = eSqlRet_empty;
+                eRet = eSqlRet_Empty;
                 break;
             }
-            eRet = eSqlRet_data;
+            eRet = eSqlRet_Data;
         }while(0);
         return eRet;
     }
 
     template<typename ...TArgs>
-    SqlRetCode queryOne(const std::string &strQuery, TArgs &...args){
-        SqlRetCode eRet = eSqlRet_error;
+    SqlRetCode queryOne(const std::string &strQuery, TArgs &&...args){
+        SqlRetCode eRet = eSqlRet_Error;
         do{
             eRet = query(strQuery);
-            if(eRet != eSqlRet_data){
+            if(eRet != eSqlRet_Data){
                 break;
             }
-            if(!getNextRow(args...)){
-                eRet = eSqlRet_empty;
+            if(!getNextRow(std::forward<TArgs>(args)...)){
+                eRet = eSqlRet_Empty;
                 break;
             }
-            eRet = eSqlRet_success;
         }while(0);
         return eRet;
     }
 
-    template<typename ...TArgs>
-    bool getNextRow(TArgs &...args){
-        bool bRet = false;
-        do{
-            if(!m_pRes){
-                break;
-            }
-            m_pRow = mysql_fetch_row(m_pRes);
-            if(m_pRow == nullptr){
-                break;
-            }
-            return fetch(0, args...);
-        }while(0);
-        return bRet;
-    }
+	template<typename ...TArgs>
+	bool getNextRow(TArgs && ...args) {
+		if (!m_pRes) {
+			return false;
+		}
+		m_pRow = mysql_fetch_row(m_pRes);
+		if (m_pRow == nullptr) {
+			return false;
+		}
+		if (sizeof...(args) > getFiledCount()) {
+			return false;
+		}
+		uint32_t nColIndex = 0;
+		std::initializer_list<int> {(_parseValue(m_pRow[nColIndex++], std::forward<TArgs>(args)), 0) ... };
+		return true;
+	}
+
+   
+	std::vector<std::vector<std::string>> getAll(const std::string &strQuery, SqlRetCode *eRet = nullptr) {
+		std::vector<std::vector<std::string>> vvRet;
+		SqlRetCode eRetCode;
+		do {
+			eRetCode = query(strQuery);
+			if (eRetCode != eSqlRet_Data) {
+				break;
+			}
+			std::string strData;
+			while (m_pRow = mysql_fetch_row(m_pRes), m_pRow) {
+				uint32_t nCol = 0;
+				std::vector<std::string> vCol;
+				while (nCol < getFiledCount()) {
+					strData = std::string(m_pRow[nCol++]);
+					vCol.push_back(strData);
+				}
+				vvRet.push_back(vCol);
+			}
+		} while (0);
+		if (eRet) {
+			*eRet = eRetCode;
+		}
+		return std::forward<std::vector<std::vector<std::string>>>(vvRet);
+	}
 
     uint64_t getAffectCount() const{
         return m_nAffect;
@@ -172,41 +199,11 @@ private:
     }
 
     void _parseValue(const std::string& strFiled,char& szResult){
-        int16_t temp = 0;
-        _parseValue<int16_t>(strFiled,temp);
+        int8_t temp = 0;
+        _parseValue<int8_t>(strFiled,temp);
         szResult = (char)temp;
     }
 
-    template<typename TValue>
-    bool _getFiled(uint32_t nIndex, TValue &tValue){
-        bool bRet = false;
-        do{
-            if(nIndex >= m_pRes->row_count){
-                break;
-            }
-            if(m_pRow[nIndex]){
-                _parseValue(m_pRow[nIndex], tValue);
-            }
-            bRet = true;
-        }while(0);
-        return bRet;
-    }
-
-    template<typename TValue, typename ...TArgs>
-    bool _fetch(uint32_t nIndex, TValue &tValue, TArgs &...args){
-        if(nIndex >= m_pRes->field_count){
-            return true;
-        }
-        if(!_getFiled(nIndex, tValue)){
-            return false;
-        }
-        return _fetch(nIndex + 1, args...);
-    }
-
-    bool _fetch(uint32_t nIndex){
-        XSVR_UNUSED(nIndex);
-        return true;
-    }
 
 	void _sqlErrMsg(const std::string &strSql) {
 		std::string strErrMsg;
